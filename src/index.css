@@ -108,11 +108,11 @@
 }
 
 .animate-fly-in {
-  animation: fly-in 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation: fly-in 1.15s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
 .animate-flash {
-  animation: flash 0.85s ease-out forwards;
+  animation: flash 1.15s ease-out forwards;
 }
 
 .animate-dock-pulse {

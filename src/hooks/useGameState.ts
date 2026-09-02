@@ -15,7 +15,7 @@ import {
   saveState,
   setRobotName,
 } from '../storage/gameStore'
-import type { DockEvent, GameState, PartId } from '../types/game'
+import { PART_ORDER, type DockEvent, type GameState, type PartId } from '../types/game'
 
 export function useGameState() {
   const [state, setState] = useState<GameState>(() => loadState())
@@ -76,7 +76,21 @@ export function useGameState() {
 
   const setPart = useCallback(
     (partId: PartId, docked: boolean) => {
-      update((s) => forcePart(s, partId, docked))
+      update((s) => {
+        const next = forcePart(s, partId, docked)
+        if (docked && s.parts[partId] === 0) {
+          setDockEvent({ partId, key: Date.now() })
+        }
+        if (
+          docked &&
+          PART_ORDER.every((p) => (p === partId ? true : next.parts[p] === 1)) &&
+          !next.heroCelebrated
+        ) {
+          setShowHero(true)
+          return { ...next, tickets: next.tickets + 1 }
+        }
+        return next
+      })
     },
     [update],
   )
