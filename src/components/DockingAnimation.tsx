@@ -8,7 +8,7 @@ interface DockingAnimationProps {
 
 export function DockingAnimation({ partId, onDone }: DockingAnimationProps) {
   useEffect(() => {
-    const id = window.setTimeout(onDone, 1300)
+    const id = window.setTimeout(onDone, 2000)
     return () => window.clearTimeout(id)
   }, [onDone, partId])
 
