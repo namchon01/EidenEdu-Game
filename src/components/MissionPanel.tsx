@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { MissionDef } from '../data/missions'
 import type { MissionStatus } from '../types/game'
 
@@ -16,8 +17,9 @@ export function MissionPanel({
   cooling,
   onSelect,
 }: MissionPanelProps) {
+  const [expanded, setExpanded] = useState(false)
   const doneCount = missions.filter((m) => statuses[m.id] === 'done').length
-  const visible = pickTodaysMissions(missions, statuses, limit)
+  const visible = pickTodaysMissions(missions, statuses, expanded ? missions.length : limit, cooling)
 
   return (
     <section className="mx-auto w-full max-w-lg px-4 pb-6">
@@ -37,16 +39,16 @@ export function MissionPanel({
               type="button"
               disabled={done}
               onClick={() => onSelect(m.id)}
-              className={`min-h-[88px] rounded-2xl p-4 text-left shadow-lg transition active:scale-[0.98] disabled:opacity-60 ${
+              className={`min-h-[88px] rounded-2xl p-4 text-left shadow-lg transition active:scale-[0.98] disabled:cursor-default ${
                 done
-                  ? 'bg-emerald-600/80 text-white'
+                  ? 'bg-slate-800/90 text-emerald-200 ring-2 ring-emerald-400/50'
                   : locked
                     ? 'bg-slate-700/80 text-cyan-100'
                     : `bg-gradient-to-br ${m.color} text-slate-900`
               }`}
             >
               <span className="text-3xl" aria-hidden>
-                {m.icon}
+                {done ? '✅' : m.icon}
               </span>
               <p className="mt-1 font-display text-base font-extrabold leading-tight">
                 {m.title}
@@ -56,18 +58,31 @@ export function MissionPanel({
           )
         })}
       </div>
+      {missions.length > limit && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-3 min-h-12 w-full rounded-2xl bg-white/10 font-display font-bold text-amber-50"
+        >
+          {expanded ? '접기' : '모든 미션 보기'}
+        </button>
+      )}
     </section>
   )
 }
 
-/** Prefer pending missions, keep recovery visible when cooling, respect daily limit. */
 function pickTodaysMissions(
   missions: MissionDef[],
   statuses: Record<string, MissionStatus>,
   limit: number,
+  cooling: boolean,
 ) {
+  if (cooling) {
+    const recovery = missions.filter((m) => m.recovery)
+    const rest = missions.filter((m) => !m.recovery)
+    return [...recovery, ...rest].slice(0, Math.max(limit, 2))
+  }
   const pending = missions.filter((m) => statuses[m.id] !== 'done')
   const done = missions.filter((m) => statuses[m.id] === 'done')
-  const ordered = [...pending, ...done]
-  return ordered.slice(0, Math.max(limit, 2))
+  return [...pending, ...done].slice(0, Math.max(limit, 2))
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { MISSIONS } from '../data/missions'
 import {
   addReward,
@@ -7,6 +7,7 @@ import {
   clearExpiredCooling,
   completeMission,
   forcePart,
+  isComplete,
   loadState,
   markHeroCelebrated,
   refreshDailyMissions,
@@ -15,12 +16,14 @@ import {
   saveState,
   setRobotName,
 } from '../storage/gameStore'
-import type { DockEvent, GameState, PartId } from '../types/game'
+import { PART_ORDER, type DockEvent, type GameState, type PartId } from '../types/game'
 
 export function useGameState() {
   const [state, setState] = useState<GameState>(() => loadState())
   const [dockEvent, setDockEvent] = useState<DockEvent | null>(null)
   const [showHero, setShowHero] = useState(false)
+  const prevParts = useRef(state.parts)
+  const prevComplete = useRef(isComplete(state) && state.heroCelebrated)
 
   useEffect(() => {
     saveState(state)
@@ -32,6 +35,24 @@ export function useGameState() {
     }, 30_000)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    for (const partId of PART_ORDER) {
+      if (prevParts.current[partId] === 0 && state.parts[partId] === 1) {
+        setDockEvent({ partId, key: Date.now() })
+        break
+      }
+    }
+    prevParts.current = state.parts
+  }, [state.parts])
+
+  useEffect(() => {
+    const done = isComplete(state)
+    if (done && !state.heroCelebrated && !prevComplete.current) {
+      setShowHero(true)
+    }
+    prevComplete.current = done && state.heroCelebrated
+  }, [state])
 
   const update = useCallback((fn: (s: GameState) => GameState) => {
     setState((s) => fn(clearExpiredCooling(refreshDailyMissions(s))))
@@ -47,19 +68,15 @@ export function useGameState() {
           engineerMessage: '냉각 중! 회복 미션(떼 안 쓰기)으로 고치자!',
         }
       }
-      // Commander force: temporarily clear cooling lock for docking rewards
       const working =
         opts?.force && base.mode === 'cooling'
           ? { ...base, mode: 'normal' as const }
           : base
-      const { state: next, docked, completedRobot } = completeMission(working, missionId)
-      const restored =
-        opts?.force && base.mode === 'cooling' && next.mode === 'normal' && !def?.recovery
-          ? { ...next, mode: 'cooling' as const, coolingUntil: base.coolingUntil }
-          : next
-      if (docked) setDockEvent(docked)
-      if (completedRobot) setShowHero(true)
-      return restored
+      const { state: next } = completeMission(working, missionId)
+      if (opts?.force && base.mode === 'cooling' && next.mode === 'normal' && !def?.recovery) {
+        return { ...next, mode: 'cooling' as const, coolingUntil: base.coolingUntil }
+      }
+      return next
     })
   }, [])
 
@@ -76,7 +93,17 @@ export function useGameState() {
 
   const setPart = useCallback(
     (partId: PartId, docked: boolean) => {
-      update((s) => forcePart(s, partId, docked))
+      update((s) => {
+        const next = forcePart(s, partId, docked)
+        if (
+          docked &&
+          PART_ORDER.every((p) => (p === partId ? true : next.parts[p] === 1)) &&
+          !next.heroCelebrated
+        ) {
+          return { ...next, tickets: next.tickets + (isComplete(next) && !isComplete(s) ? 1 : 0) }
+        }
+        return next
+      })
     },
     [update],
   )
@@ -109,6 +136,8 @@ export function useGameState() {
 
   const hardReset = useCallback(() => {
     const fresh = resetGame()
+    prevParts.current = fresh.parts
+    prevComplete.current = false
     setState(fresh)
     setDockEvent(null)
     setShowHero(false)

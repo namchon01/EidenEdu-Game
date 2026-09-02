@@ -72,7 +72,7 @@ export const MISSIONS: MissionDef[] = [
     icon: '🤝',
     partId: 'arms',
     energyGain: 12,
-    pieceGain: 0,
+    pieceGain: 1,
     color: 'from-rose-400 to-pink-500',
   },
   {
