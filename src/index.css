@@ -1,0 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Fredoka', 'Nunito', ui-rounded, system-ui, sans-serif;
+  --font-sans: 'Nunito', ui-rounded, system-ui, sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: #042f2e;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  input {
+    font-family: inherit;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .bg-hangar {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(45, 212, 191, 0.28), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(251, 191, 36, 0.12), transparent 50%),
+      linear-gradient(165deg, #0f766e 0%, #042f2e 42%, #0b1220 100%);
+  }
+}
+
+@keyframes fly-in {
+  0% {
+    transform: translate(-220%, -180%) rotate(-25deg) scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes flash {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@keyframes dock-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.15);
+  }
+}
+
+@keyframes steam {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(-28px) scale(1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes spark {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.6);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.4);
+  }
+}
+
+.animate-fly-in {
+  animation: fly-in 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.animate-flash {
+  animation: flash 0.85s ease-out forwards;
+}
+
+.animate-dock-pulse {
+  animation: dock-pulse 0.6s ease-in-out 2;
+}
+
+.animate-blink {
+  animation: blink 3.5s infinite;
+}
+
+.animate-steam {
+  animation: steam 1.6s ease-out infinite;
+}
+
+.animate-spark {
+  animation: spark 1.2s ease-in-out infinite;
+}
