@@ -12,7 +12,20 @@ npm run dev
 모바일에서는 같은 Wi‑Fi의 PC에서 `npm run dev -- --host` 후 표시된 주소로 접속하거나,
 배포된 사이트에서 바로 실행할 수 있습니다.
 
-**모바일 웹 주소:** https://namchon01.github.io/EidenEdu-Game/
+**모바일 웹 주소 (전체 경로 필요):**  
+https://namchon01.github.io/EidenEdu-Game/
+
+> `namchon01.github.io` 만 열면 404가 납니다. 반드시 위 주소 전체를 입력하세요.
+
+### GitHub Pages 처음 켤 때 (한 번만)
+
+저장소가 **Private** 이면 무료 계정에서 Pages가 열리지 않을 수 있습니다.
+
+1. https://github.com/namchon01/EidenEdu-Game/settings → **Danger Zone** 에서 저장소를 **Public** 으로 변경  
+2. https://github.com/namchon01/EidenEdu-Game/settings/pages  
+3. **Source** = **Deploy from a branch**  
+4. Branch = **`gh-pages`** / folder = **`/` (root)** → Save  
+5. 1~2분 뒤 위 모바일 주소로 접속
 
 ## 주요 기능
 
