@@ -51,14 +51,31 @@ function primeSilentBuffer(c: AudioContext) {
 }
 
 /**
+ * Ask Safari to use a media-playback session so SFX can play while the
+ * hardware mute switch is on (supported on recent iOS; no-ops elsewhere).
+ */
+function preferPlaybackAudioSession() {
+  try {
+    const nav = navigator as Navigator & {
+      audioSession?: { type: string }
+    }
+    if (nav.audioSession) nav.audioSession.type = 'playback'
+  } catch {
+    // Older browsers simply omit the API.
+  }
+}
+
+/**
  * Browsers only allow audio to start from a user gesture. Call this from
  * pointer/touch handlers; mobile Safari also needs a silent buffer kick.
  */
 export async function unlockAudio(): Promise<boolean> {
+  preferPlaybackAudioSession()
   const c = getContext()
   if (!c) return false
   try {
     if (c.state === 'suspended') await c.resume()
+    preferPlaybackAudioSession()
     primeSilentBuffer(c)
     unlocked = c.state === 'running'
     return unlocked
@@ -321,6 +338,7 @@ const RECIPES: Record<SfxName, (c: AudioContext, out: AudioNode) => void> = {
 
 export function playSfx(name: SfxName) {
   if (muted) return
+  preferPlaybackAudioSession()
   const c = getContext()
   if (!c || !master) return
 
@@ -337,6 +355,7 @@ export function playSfx(name: SfxName) {
     void c
       .resume()
       .then(() => {
+        preferPlaybackAudioSession()
         primeSilentBuffer(c)
         unlocked = c.state === 'running'
         run()

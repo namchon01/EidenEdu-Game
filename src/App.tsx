@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react'
 import { Gift, RotateCcw } from 'lucide-react'
-import { playSfx, unlockAudio } from './audio/soundEngine'
+import { playSfx, isAudioUnlocked, setMuted, unlockAudio } from './audio/soundEngine'
 import { useSoundSync } from './audio/useSound'
 import { AssemblyToggle } from './components/AssemblyToggle'
 import { EngineerBubble } from './components/EngineerBubble'
@@ -8,6 +8,7 @@ import { HeroCeremony } from './components/HeroCeremony'
 import { MissionPanel } from './components/MissionPanel'
 import { RobotSilhouette } from './components/RobotSilhouette'
 import { Shop } from './components/Shop'
+import { SoundToggle } from './components/SoundToggle'
 import { StatusBar } from './components/StatusBar'
 import { MISSIONS } from './data/missions'
 import { useAssembly } from './hooks/useAssembly'
@@ -38,6 +39,25 @@ export default function App() {
     void unlockAudio()
     playSfx('detach')
     game.unstamp(id)
+  }
+
+  const handleSoundToggle = () => {
+    // Off → on: arm iOS playback session and confirm with a tap sound.
+    if (!game.state.soundOn) {
+      setMuted(false)
+      game.setSound(true)
+      void unlockAudio().then(() => playSfx('tap'))
+      return
+    }
+    // On but not unlocked yet (common on first Safari open / silent switch):
+    // same tap unlocks without flipping to mute.
+    if (!isAudioUnlocked()) {
+      setMuted(false)
+      void unlockAudio().then(() => playSfx('tap'))
+      return
+    }
+    setMuted(true)
+    game.setSound(false)
   }
 
   return (
@@ -119,7 +139,6 @@ export default function App() {
           missions={MISSIONS}
           progress={missionProgress}
           parts={parts}
-          limit={game.state.dailyMissionLimit}
           cooling={game.state.mode === 'cooling'}
           onStamp={handleStamp}
           onUnstamp={handleUnstamp}
@@ -149,6 +168,8 @@ export default function App() {
           }}
         />
       )}
+
+      <SoundToggle soundOn={game.state.soundOn} onToggle={handleSoundToggle} />
     </div>
   )
 }

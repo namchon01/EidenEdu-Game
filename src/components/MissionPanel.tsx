@@ -7,7 +7,6 @@ interface MissionPanelProps {
   missions: MissionDef[]
   progress: Record<string, number>
   parts: Record<PartId, 0 | 1>
-  limit: number
   cooling: boolean
   onStamp: (id: string) => void
   onUnstamp: (id: string) => void
@@ -17,22 +16,18 @@ export function MissionPanel({
   missions,
   progress,
   parts,
-  limit,
   cooling,
   onStamp,
   onUnstamp,
 }: MissionPanelProps) {
-  const [expanded, setExpanded] = useState(false)
   const builtParts = PART_ORDER.filter((p) => parts[p] === 1).length
-  const shown = Math.max(limit, 2)
-  // Always the original mission order. Re-sorting on a stamp made the next
-  // tap land on a different card, so missions looked "linked".
-  const visible = expanded ? missions : missions.slice(0, shown)
 
   return (
     <section
       className="mx-auto w-full max-w-lg px-4"
-      style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
+      style={{
+        paddingBottom: 'max(5.5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem))',
+      }}
     >
       <div className="mb-3 flex items-end justify-between">
         <h2 className="font-display text-xl font-bold text-amber-50">오늘의 미션</h2>
@@ -42,7 +37,7 @@ export function MissionPanel({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        {visible.map((m) => (
+        {missions.map((m) => (
           <MissionCard
             key={m.id}
             mission={m}
@@ -53,16 +48,6 @@ export function MissionPanel({
           />
         ))}
       </div>
-
-      {missions.length > shown && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-3 min-h-11 w-full rounded-2xl bg-white/10 font-display font-bold text-amber-50"
-        >
-          {expanded ? '접기' : `모든 미션 보기 (${missions.length}개)`}
-        </button>
-      )}
     </section>
   )
 }
