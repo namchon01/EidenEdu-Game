@@ -26,7 +26,7 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          BASE_PATH: /eidenedu-game/
+          BASE_PATH: /EidenEdu-Game/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

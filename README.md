@@ -12,7 +12,7 @@ npm run dev
 모바일에서는 같은 Wi‑Fi의 PC에서 `npm run dev -- --host` 후 표시된 주소로 접속하거나,
 배포된 사이트에서 바로 실행할 수 있습니다.
 
-**모바일 웹 주소:** https://namchon01.github.io/eidenedu-game/
+**모바일 웹 주소:** https://namchon01.github.io/EidenEdu-Game/
 
 ## 주요 기능
 
