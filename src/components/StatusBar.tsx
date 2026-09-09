@@ -6,12 +6,13 @@ interface StatusBarProps {
   energy: number
   mode: GameMode
   robotName: string
-  tickets: number
+  /** Total mission stamps collected. */
+  stamps: number
   /** Sits to the right of the status panel (e.g. assemble / disassemble). */
   trailing?: ReactNode
 }
 
-export function StatusBar({ energy, mode, robotName, tickets, trailing }: StatusBarProps) {
+export function StatusBar({ energy, mode, robotName, stamps, trailing }: StatusBarProps) {
   const cooling = mode === 'cooling'
 
   return (
@@ -46,8 +47,8 @@ export function StatusBar({ energy, mode, robotName, tickets, trailing }: Status
                 <p className="text-[11px] uppercase tracking-wider opacity-80">에너지</p>
               </div>
               <div className="rounded-xl bg-white/10 px-2.5 py-1.5 text-center">
-                <p className="font-display text-xl font-bold tabular-nums">{tickets}</p>
-                <p className="text-[10px] opacity-80">티켓</p>
+                <p className="font-display text-xl font-bold tabular-nums">{stamps}</p>
+                <p className="text-[10px] opacity-80">도장</p>
               </div>
             </div>
           </div>

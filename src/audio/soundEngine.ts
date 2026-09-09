@@ -12,6 +12,7 @@ let ctx: AudioContext | null = null
 let master: GainNode | null = null
 let noise: AudioBuffer | null = null
 let muted = false
+let unlocked = false
 
 type AudioContextCtor = typeof AudioContext
 
@@ -36,13 +37,38 @@ function getContext(): AudioContext | null {
   }
 }
 
+/** iOS needs a real buffer start inside a user gesture to fully unlock audio. */
+function primeSilentBuffer(c: AudioContext) {
+  try {
+    const buffer = c.createBuffer(1, 1, c.sampleRate)
+    const src = c.createBufferSource()
+    src.buffer = buffer
+    src.connect(c.destination)
+    src.start(0)
+  } catch {
+    // Ignore — resume alone is enough on most Android browsers.
+  }
+}
+
 /**
- * Browsers only allow audio to start from a user gesture, so this must run
- * inside a real pointer/key handler before any sound will be audible.
+ * Browsers only allow audio to start from a user gesture. Call this from
+ * pointer/touch handlers; mobile Safari also needs a silent buffer kick.
  */
-export function unlockAudio() {
+export async function unlockAudio(): Promise<boolean> {
   const c = getContext()
-  if (c && c.state === 'suspended') void c.resume()
+  if (!c) return false
+  try {
+    if (c.state === 'suspended') await c.resume()
+    primeSilentBuffer(c)
+    unlocked = c.state === 'running'
+    return unlocked
+  } catch {
+    return false
+  }
+}
+
+export function isAudioUnlocked() {
+  return unlocked && !!ctx && ctx.state === 'running'
 }
 
 export function setMuted(next: boolean) {
@@ -297,10 +323,28 @@ export function playSfx(name: SfxName) {
   if (muted) return
   const c = getContext()
   if (!c || !master) return
-  if (c.state === 'suspended') void c.resume()
-  try {
-    RECIPES[name](c, master)
-  } catch {
-    // A failed sound effect should never interrupt gameplay.
+
+  const run = () => {
+    try {
+      RECIPES[name](c, master!)
+    } catch {
+      // A failed sound effect should never interrupt gameplay.
+    }
   }
+
+  // Mobile Safari drops sounds scheduled before resume() finishes.
+  if (c.state === 'suspended') {
+    void c
+      .resume()
+      .then(() => {
+        primeSilentBuffer(c)
+        unlocked = c.state === 'running'
+        run()
+      })
+      .catch(() => {})
+    return
+  }
+
+  unlocked = true
+  run()
 }

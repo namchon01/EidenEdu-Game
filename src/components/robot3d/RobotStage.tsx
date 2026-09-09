@@ -82,7 +82,7 @@ export function RobotStage({
 
   return (
     <div className="mx-auto w-full max-w-[420px]">
-      <div className="relative mx-auto aspect-[4/5] min-h-[22rem] max-h-[58dvh] w-full touch-none overflow-hidden rounded-[1.75rem] border border-sky-100/70 bg-robot-sky shadow-2xl shadow-black/30 sm:max-h-[28rem]">
+      <div className="relative mx-auto aspect-[4/5] min-h-[18rem] max-h-[42dvh] w-full touch-none overflow-hidden rounded-[1.75rem] border border-sky-100/70 bg-robot-sky shadow-2xl shadow-black/30 sm:max-h-[26rem]">
         <RobotCanvas
           parts={parts}
           cooling={cooling}

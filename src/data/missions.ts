@@ -37,9 +37,9 @@ export const MISSIONS: MissionDef[] = [
   },
   {
     id: 'polite',
-    title: '존댓말 쓰기',
+    title: '예쁜말 쓰기',
     short: '부드러운 말로 말하기',
-    almost: '한 번만 더 존댓말을 쓰면 머리가 생겨요!',
+    almost: '한 번만 더 예쁜말을 쓰면 머리가 생겨요!',
     icon: '💬',
     partId: 'head',
     goalTotal: GOAL_TOTAL,

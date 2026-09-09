@@ -39,7 +39,7 @@ export interface GameState {
   rewards: RewardItem[]
   parentPin: string
   tickets: number
-  /** Same as total mission stamps; kept for save compatibility. */
+  /** Lifetime shop tickets granted by finishing the robot (7/7). */
   ticketsEarned: number
   stickers: string[]
   heroCelebrated: boolean

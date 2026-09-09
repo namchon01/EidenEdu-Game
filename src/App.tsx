@@ -1,12 +1,10 @@
 import { lazy, Suspense, useState } from 'react'
 import { Gift, RotateCcw } from 'lucide-react'
-import { playSfx } from './audio/soundEngine'
+import { playSfx, unlockAudio } from './audio/soundEngine'
 import { useSoundSync } from './audio/useSound'
 import { AssemblyToggle } from './components/AssemblyToggle'
-import { CommanderMode } from './components/CommanderMode'
 import { EngineerBubble } from './components/EngineerBubble'
 import { HeroCeremony } from './components/HeroCeremony'
-import { LockButton } from './components/LockButton'
 import { MissionPanel } from './components/MissionPanel'
 import { RobotSilhouette } from './components/RobotSilhouette'
 import { Shop } from './components/Shop'
@@ -14,6 +12,7 @@ import { StatusBar } from './components/StatusBar'
 import { MISSIONS } from './data/missions'
 import { useAssembly } from './hooks/useAssembly'
 import { useGameState } from './hooks/useGameState'
+import { totalStamps } from './storage/gameStore'
 
 // three.js is a heavy dependency, so the hangar paints in 2D first and upgrades to 3D.
 const RobotStage = lazy(() =>
@@ -24,14 +23,21 @@ export default function App() {
   const game = useGameState()
   useSoundSync(game.state.soundOn)
   const assembly = useAssembly()
-  const [commanderOpen, setCommanderOpen] = useState(false)
   const [shopOpen, setShopOpen] = useState(false)
 
   const { missionProgress, parts } = game.state
 
   const handleStamp = (id: string) => {
+    // Unlock in the same tap stack so iOS allows the first SFX.
+    void unlockAudio()
     playSfx('tap')
     game.stamp(id)
+  }
+
+  const handleUnstamp = (id: string) => {
+    void unlockAudio()
+    playSfx('detach')
+    game.unstamp(id)
   }
 
   return (
@@ -44,7 +50,7 @@ export default function App() {
         energy={game.state.energy}
         mode={game.state.mode}
         robotName={game.state.robotName}
-        tickets={game.state.tickets}
+        stamps={totalStamps(game.state)}
         trailing={
           <AssemblyToggle
             anyDetached={assembly.anyDetached}
@@ -55,7 +61,7 @@ export default function App() {
       />
 
       <main className="relative z-10 mx-auto flex w-full max-w-lg flex-col">
-        <div className="px-4 pt-2 pb-1">
+        <div className="px-4 pt-1.5 pb-0.5">
           <Suspense
             fallback={
               <RobotSilhouette
@@ -83,24 +89,30 @@ export default function App() {
 
         <EngineerBubble message={game.state.engineerMessage} />
 
-        <div className="mx-auto mb-2 flex w-full max-w-lg items-center justify-end gap-2 px-4">
-          <button
-            type="button"
-            onClick={game.clearMissions}
-            aria-label="미션 도장 모두 리셋"
-            className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-rose-500/90 px-4 font-display font-extrabold text-white shadow-lg ring-1 ring-rose-200/40"
+        <div className="mx-auto mb-2 flex w-full max-w-lg justify-end px-4">
+          <div
+            className="inline-flex overflow-hidden rounded-full border border-white/12 bg-slate-950/60 shadow-[0_10px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl"
+            role="group"
+            aria-label="빠른 메뉴"
           >
-            <RotateCcw className="size-5" />
-            리셋
-          </button>
-          <button
-            type="button"
-            onClick={() => setShopOpen(true)}
-            className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-amber-400/90 px-4 font-display font-extrabold text-slate-900 shadow-lg"
-          >
-            <Gift className="size-5" />
-            상점
-          </button>
+            <button
+              type="button"
+              onClick={game.clearMissions}
+              aria-label="미션 도장 모두 리셋"
+              className="inline-flex min-h-10 items-center gap-1.5 border-r border-white/10 px-4 text-[13px] font-semibold tracking-wide text-rose-100/90 transition hover:bg-rose-400/15 active:bg-rose-400/25"
+            >
+              <RotateCcw className="size-3.5 opacity-80" strokeWidth={2.25} />
+              리셋
+            </button>
+            <button
+              type="button"
+              onClick={() => setShopOpen(true)}
+              className="inline-flex min-h-10 items-center gap-1.5 px-4 text-[13px] font-semibold tracking-wide text-amber-50/95 transition hover:bg-amber-300/15 active:bg-amber-300/25"
+            >
+              <Gift className="size-3.5 opacity-90" strokeWidth={2.25} />
+              선물
+            </button>
+          </div>
         </div>
 
         <MissionPanel
@@ -110,40 +122,15 @@ export default function App() {
           limit={game.state.dailyMissionLimit}
           cooling={game.state.mode === 'cooling'}
           onStamp={handleStamp}
-          onUnstamp={game.unstamp}
+          onUnstamp={handleUnstamp}
         />
       </main>
-
-      <LockButton expectedPin={game.state.parentPin} onUnlock={() => setCommanderOpen(true)} />
-
-      {commanderOpen && (
-        <CommanderMode
-          state={game.state}
-          onClose={() => setCommanderOpen(false)}
-          onCooling={game.startCooling}
-          onClearCooling={game.endCooling}
-          onSetPart={game.setPart}
-          onSetDailyLimit={game.setDailyLimit}
-          onSetPin={game.setPin}
-          onSetSound={game.setSound}
-          onRename={game.rename}
-          onAddReward={game.createReward}
-          onReset={() => {
-            game.hardReset()
-            setCommanderOpen(false)
-          }}
-          onStampMission={(id) => game.stamp(id, { force: true })}
-          onUnstampMission={game.unstamp}
-        />
-      )}
 
       {shopOpen && (
         <Shop
           tickets={game.state.tickets}
           cooling={game.state.mode === 'cooling'}
           rewards={game.state.rewards}
-          missions={MISSIONS}
-          progress={missionProgress}
           parts={parts}
           message={game.state.engineerMessage}
           onReserve={game.buyReward}

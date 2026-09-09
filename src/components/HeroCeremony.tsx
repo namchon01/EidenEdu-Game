@@ -53,7 +53,7 @@ export function HeroCeremony({ robotName, onDone, onOpenShop }: HeroCeremonyProp
           phase >= 2 ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        7부품 조립 완료! 출동 티켓을 받았어요. 약속한 보상으로 교환할 수 있어요.
+        7부품 조립 완료! 출동 티켓을 받았어요. 약속한 선물로 교환할 수 있어요.
       </p>
 
       <div
@@ -66,7 +66,7 @@ export function HeroCeremony({ robotName, onDone, onOpenShop }: HeroCeremonyProp
           onClick={onOpenShop}
           className="min-h-14 rounded-2xl bg-gradient-to-r from-amber-300 to-orange-400 font-display text-lg font-extrabold text-slate-900"
         >
-          보상 받으러 가기
+          선물 받으러 가기
         </button>
         <button
           type="button"

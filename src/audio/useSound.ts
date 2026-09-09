@@ -11,12 +11,25 @@ export function useSoundSync(soundOn: boolean) {
   }, [soundOn])
 
   useEffect(() => {
-    const unlock = () => unlockAudio()
-    window.addEventListener('pointerdown', unlock, { once: true })
-    window.addEventListener('keydown', unlock, { once: true })
-    return () => {
-      window.removeEventListener('pointerdown', unlock)
-      window.removeEventListener('keydown', unlock)
+    let done = false
+
+    const unlock = () => {
+      if (done) return
+      void unlockAudio().then((ok) => {
+        if (!ok) return
+        done = true
+        remove()
+      })
     }
+
+    const opts: AddEventListenerOptions = { capture: true, passive: true }
+    const events = ['pointerdown', 'touchstart', 'touchend', 'click', 'keydown'] as const
+
+    const remove = () => {
+      for (const type of events) window.removeEventListener(type, unlock, opts)
+    }
+
+    for (const type of events) window.addEventListener(type, unlock, opts)
+    return remove
   }, [])
 }

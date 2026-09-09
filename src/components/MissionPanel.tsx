@@ -32,7 +32,7 @@ export function MissionPanel({
   return (
     <section
       className="mx-auto w-full max-w-lg px-4"
-      style={{ paddingBottom: 'calc(5.75rem + env(safe-area-inset-bottom, 0px))' }}
+      style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
     >
       <div className="mb-3 flex items-end justify-between">
         <h2 className="font-display text-xl font-bold text-amber-50">오늘의 미션</h2>
@@ -58,7 +58,7 @@ export function MissionPanel({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-3 min-h-12 w-full rounded-2xl bg-white/10 pl-16 font-display font-bold text-amber-50"
+          className="mt-3 min-h-11 w-full rounded-2xl bg-white/10 font-display font-bold text-amber-50"
         >
           {expanded ? '접기' : `모든 미션 보기 (${missions.length}개)`}
         </button>
@@ -143,12 +143,8 @@ function MissionCard({ mission, stamps, locked, onStamp, onUnstamp }: MissionCar
 
         <div className="flex items-center gap-3">
           <span
-            className={`grid size-12 shrink-0 place-items-center rounded-2xl text-2xl shadow-inner ${
-              done
-                ? 'bg-white/40 ring-1 ring-white/60'
-                : dimmed
-                  ? 'bg-slate-700/70 grayscale'
-                  : `bg-gradient-to-br ${mission.color}`
+            className={`grid size-12 shrink-0 place-items-center text-3xl leading-none ${
+              dimmed && !done ? 'grayscale opacity-60' : ''
             }`}
             aria-hidden
           >
@@ -236,7 +232,7 @@ function StampButton({
       onClick={onPress}
       aria-label={`${mission.title} ${index + 1}번째 도장 ${filled ? '되돌리기' : '찍기'}`}
       aria-pressed={filled}
-      className={`relative grid size-11 place-items-center rounded-full font-display text-lg font-black transition active:scale-90 disabled:opacity-100 ${look} ${
+      className={`relative grid size-[2.475rem] place-items-center rounded-full font-display text-base font-black transition active:scale-90 disabled:opacity-100 ${look} ${
         pop ? 'animate-stamp-pop' : ''
       } ${!live && !filled ? 'opacity-50' : ''}`}
     >
@@ -245,7 +241,7 @@ function StampButton({
           {pop && (
             <span className="animate-stamp-ring absolute inset-0 rounded-full ring-2 ring-white/80" />
           )}
-          <Check className="size-6" strokeWidth={3.5} />
+          <Check className="size-[1.35rem]" strokeWidth={3.5} />
         </>
       ) : (
         index + 1

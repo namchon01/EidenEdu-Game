@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Vector3 } from 'three'
-import { playSfx } from '../audio/soundEngine'
+import { playSfx, unlockAudio } from '../audio/soundEngine'
 import { PART_ORDER, type PartId } from '../types/game'
 
 export type PartPhase = 'docked' | 'detached' | 'dragging'
@@ -80,6 +80,7 @@ export function useAssembly(): Assembly {
 
   const detach = useCallback(
     (id: PartId) => {
+      void unlockAudio()
       offsets.current[id].set(...DETACH_OFFSETS[id])
       setPhases((prev) => ({ ...prev, [id]: 'detached' }))
       playSfx('detach')
@@ -90,6 +91,7 @@ export function useAssembly(): Assembly {
 
   const dock = useCallback(
     (id: PartId) => {
+      void unlockAudio()
       offsets.current[id].set(0, 0, 0)
       playSfx('servo')
       later(() => playSfx('clank'), 180)
@@ -115,6 +117,7 @@ export function useAssembly(): Assembly {
   )
 
   const beginDrag = useCallback((id: PartId) => {
+    void unlockAudio()
     playSfx('tap')
     setPhases((prev) => ({ ...prev, [id]: 'dragging' }))
   }, [])
@@ -132,6 +135,7 @@ export function useAssembly(): Assembly {
   )
 
   const dockAll = useCallback(() => {
+    void unlockAudio()
     for (const id of PART_ORDER) offsets.current[id].set(0, 0, 0)
     setPhases(initialPhases())
     playSfx('clank')
@@ -139,6 +143,7 @@ export function useAssembly(): Assembly {
   }, [later])
 
   const explodeAll = useCallback(() => {
+    void unlockAudio()
     const next = {} as Record<PartId, PartPhase>
     for (const id of PART_ORDER) {
       offsets.current[id].set(...DETACH_OFFSETS[id])

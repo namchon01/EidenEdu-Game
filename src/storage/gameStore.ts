@@ -1,4 +1,5 @@
 import { MISSIONS, todayKey, type MissionDef } from '../data/missions'
+import { DEFAULT_REWARDS, mergeRewardCatalog } from '../data/rewards'
 import {
   DEFAULT_PIN,
   GOAL_TOTAL,
@@ -33,11 +34,7 @@ export function createDefaultState(): GameState {
     coolingUntil: null,
     missionDate: todayKey(),
     dailyMissionLimit: 3,
-    rewards: [
-      { id: 'r1', label: '아이스크림', cost: 1, delayed: false, redeemed: false },
-      { id: 'r2', label: '공원 놀기', cost: 1, delayed: false, redeemed: false },
-      { id: 'r3', label: '원하는 장난감', cost: 1, delayed: false, redeemed: false },
-    ],
+    rewards: DEFAULT_REWARDS.map((r) => ({ ...r })),
     parentPin: DEFAULT_PIN,
     tickets: 0,
     ticketsEarned: 0,
@@ -76,7 +73,8 @@ function normalize(raw: Partial<GameState> & LegacySave): GameState {
   }
 
   state.energy = energyFromProgress(state)
-  return syncTicketsToStamps(state)
+  state.rewards = mergeRewardCatalog(state.rewards, state.mode === 'cooling')
+  return migrateShopTickets(state, raw)
 }
 
 export function loadState(): GameState {
@@ -133,11 +131,30 @@ export function totalStamps(state: GameState): number {
   return MISSIONS.reduce((sum, m) => sum + stampsOf(state, m.id), 0)
 }
 
-/** Header / shop ticket count always mirrors total mission stamps. */
-function syncTicketsToStamps(state: GameState): GameState {
+/**
+ * Older builds mirrored tickets to stamp totals (up to 21). Convert that into
+ * spendable shop tickets: 1 per robot completion cycle still unused.
+ */
+function migrateShopTickets(state: GameState, raw: Partial<GameState>): GameState {
   const stamps = totalStamps(state)
-  if (state.tickets === stamps && state.ticketsEarned === stamps) return state
-  return { ...state, tickets: stamps, ticketsEarned: stamps }
+  if (raw.tickets == null || stamps === 0 || raw.tickets !== stamps) return state
+
+  const redeemed = state.rewards.filter((r) => r.redeemed).length
+  const grants = isComplete(state) ? Math.max(redeemed, 1) : redeemed
+  return {
+    ...state,
+    tickets: Math.max(0, grants - redeemed),
+    ticketsEarned: Math.max(state.ticketsEarned, grants),
+  }
+}
+
+/** +1 spendable shop ticket each time the robot reaches 7/7 parts. */
+function grantRewardTicket(state: GameState): GameState {
+  return {
+    ...state,
+    tickets: state.tickets + 1,
+    ticketsEarned: state.ticketsEarned + 1,
+  }
 }
 
 export const MAX_STAMPS = MISSIONS.reduce((sum, m) => sum + m.goalTotal, 0)
@@ -213,17 +230,19 @@ export function stampMission(
     }
   }
 
-  next = syncTicketsToStamps({ ...next, energy: energyFromProgress(next) })
+  next = { ...next, energy: energyFromProgress(next) }
 
-  const completedRobot = isComplete(next) && !next.heroCelebrated
+  const completedRobot = !isComplete(state) && isComplete(next)
   if (completedRobot) {
     next = {
-      ...next,
-      engineerMessage: '로봇 완성! 히어로 출동식!',
+      ...grantRewardTicket(next),
+      engineerMessage: next.heroCelebrated
+        ? '로봇 완성! 출동 티켓 1장을 더 받았어요!'
+        : '로봇 완성! 히어로 출동식!',
     }
   }
 
-  return { state: next, docked, completedRobot }
+  return { state: next, docked, completedRobot: completedRobot && !state.heroCelebrated }
 }
 
 export interface UnstampResult {
@@ -260,7 +279,7 @@ export function unstampMission(state: GameState, missionId: string): UnstampResu
     undocked = { partId: mission.partId, key: Date.now() }
   }
 
-  return { state: syncTicketsToStamps({ ...next, energy: energyFromProgress(next) }), undocked }
+  return { state: { ...next, energy: energyFromProgress(next) }, undocked }
 }
 
 export function applyCooling(state: GameState, hours = 4): GameState {
@@ -305,13 +324,19 @@ export function forcePart(state: GameState, partId: PartId, docked: boolean): Ga
       : `${PART_LABELS[partId]} 해제됨`,
   }
 
-  next = syncTicketsToStamps({ ...next, energy: energyFromProgress(next) })
+  next = { ...next, energy: energyFromProgress(next) }
+  if (!isComplete(state) && isComplete(next)) {
+    next = {
+      ...grantRewardTicket(next),
+      engineerMessage: '로봇 완성! 출동 티켓 1장을 받았어요!',
+    }
+  }
   return next
 }
 
 /**
- * Completing the robot unlocks one shop pick. Ticket count itself always
- * mirrors stamp total — reservation does not spend stamps.
+ * Each finished robot (7/7) adds one shop ticket. Tickets are spent on
+ * reservation and can stack across reset → complete cycles.
  */
 export function reserveReward(state: GameState, rewardId: string): GameState {
   if (state.mode === 'cooling') {
@@ -325,28 +350,24 @@ export function reserveReward(state: GameState, rewardId: string): GameState {
   }
   const reward = state.rewards.find((r) => r.id === rewardId)
   if (!reward || reward.redeemed || reward.delayed) return state
-  if (state.rewards.some((r) => r.redeemed)) {
-    return {
-      ...state,
-      engineerMessage: '상품은 1개만 고를 수 있어요! 먼저 고른 걸 제거해줘.',
-    }
-  }
-  if (totalStamps(state) < reward.cost) {
-    return { ...state, engineerMessage: '출동 티켓이 더 필요해!' }
+  if (state.tickets < reward.cost) {
+    return { ...state, engineerMessage: '출동 티켓이 더 필요해! 미션 7개를 다시 모아보자!' }
   }
   return {
     ...state,
+    tickets: state.tickets - reward.cost,
     rewards: state.rewards.map((r) => (r.id === rewardId ? { ...r, redeemed: true } : r)),
     engineerMessage: `${reward.label} 예약 완료! 부모님께 보여줘!`,
   }
 }
 
-/** Puts a reserved reward back on the shelf. */
+/** Puts a reserved reward back on the shelf and refunds its ticket. */
 export function clearReward(state: GameState, rewardId: string): GameState {
   const reward = state.rewards.find((r) => r.id === rewardId)
   if (!reward || !reward.redeemed) return state
   return {
     ...state,
+    tickets: state.tickets + reward.cost,
     rewards: state.rewards.map((r) =>
       r.id === rewardId ? { ...r, redeemed: false, delayed: state.mode === 'cooling' } : r,
     ),
@@ -380,9 +401,9 @@ export function resetGame(): GameState {
   return fresh
 }
 
-/** Clears every mission stamp and undocks parts, keeping shop rewards. */
+/** Clears every mission stamp and undocks parts, keeping shop tickets and rewards. */
 export function resetMissions(state: GameState): GameState {
-  return syncTicketsToStamps({
+  return {
     ...state,
     parts: emptyParts(),
     missionProgress: emptyProgress(),
@@ -390,7 +411,7 @@ export function resetMissions(state: GameState): GameState {
     stickers: [],
     heroCelebrated: false,
     engineerMessage: '미션을 처음부터 다시 모아보자!',
-  })
+  }
 }
 
 export { GOAL_TOTAL }
