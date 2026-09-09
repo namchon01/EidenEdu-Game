@@ -1,33 +1,40 @@
-import { PART_LABELS, PART_ORDER, type GameMode, type PartId } from '../types/game'
+import { MISSION_BY_PART } from '../data/missions'
+import { PART_LABELS, PART_ORDER, type GameMode, type PartId, type RewardItem } from '../types/game'
+import { TicketRack } from './TicketRack'
 
 interface RobotSilhouetteProps {
   parts: Record<PartId, 0 | 1>
-  partPieces: Record<PartId, number>
+  missionProgress: Record<string, number>
   mode: GameMode
   dockingPart: PartId | null
+  rewards?: RewardItem[]
 }
 
 const PART_STYLE: Record<
   PartId,
-  { top: string; left: string; width: string; height: string; radius: string }
+  { top: string; left: string; width: string; height: string; radius: string; z: number }
 > = {
-  head: { top: '4%', left: '32%', width: '36%', height: '18%', radius: '28% 28% 18% 18%' },
-  arms: { top: '24%', left: '8%', width: '84%', height: '22%', radius: '24%' },
-  body: { top: '28%', left: '28%', width: '44%', height: '28%', radius: '20%' },
-  legs: { top: '54%', left: '30%', width: '40%', height: '24%', radius: '16%' },
-  feet: { top: '76%', left: '24%', width: '52%', height: '16%', radius: '30% 30% 40% 40%' },
+  booster: { top: '20%', left: '6%', width: '88%', height: '16%', radius: '50% 50% 30% 30%', z: 0 },
+  head: { top: '4%', left: '32%', width: '36%', height: '18%', radius: '28% 28% 18% 18%', z: 1 },
+  arms: { top: '24%', left: '8%', width: '84%', height: '22%', radius: '24%', z: 1 },
+  body: { top: '28%', left: '28%', width: '44%', height: '28%', radius: '20%', z: 1 },
+  legs: { top: '54%', left: '30%', width: '40%', height: '24%', radius: '16%', z: 1 },
+  feet: { top: '76%', left: '24%', width: '52%', height: '16%', radius: '30% 30% 40% 40%', z: 1 },
+  shield: { top: '36%', left: '2%', width: '22%', height: '22%', radius: '32%', z: 2 },
 }
 
 export function RobotSilhouette({
   parts,
-  partPieces,
+  missionProgress,
   mode,
   dockingPart,
+  rewards = [],
 }: RobotSilhouetteProps) {
   const cooling = mode === 'cooling'
 
   return (
     <div className="relative mx-auto aspect-[3/4] w-full max-w-[280px] sm:max-w-[320px]">
+      <TicketRack rewards={rewards} />
       {/* hangar glow */}
       <div
         className={`absolute inset-6 rounded-full blur-3xl transition-colors ${
@@ -40,7 +47,9 @@ export function RobotSilhouette({
         const style = PART_STYLE[id]
         const on = parts[id] === 1
         const isDocking = dockingPart === id
-        const pieces = partPieces[id]
+        const mission = MISSION_BY_PART[id]
+        const stamps = missionProgress[mission?.id ?? ''] ?? 0
+        const goal = mission?.goalTotal ?? 3
 
         return (
           <div
@@ -51,6 +60,7 @@ export function RobotSilhouette({
               left: style.left,
               width: style.width,
               height: style.height,
+              zIndex: style.z,
             }}
             title={PART_LABELS[id]}
           >
@@ -70,6 +80,11 @@ export function RobotSilhouette({
                 <div className="flex h-full items-center justify-center gap-3 pt-1">
                   <span className="size-3 rounded-full bg-slate-900 animate-blink" />
                   <span className="size-3 rounded-full bg-slate-900 animate-blink" />
+                </div>
+              )}
+              {id === 'shield' && on && (
+                <div className="flex h-full items-center justify-center">
+                  <span className="size-2.5 rounded-full bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.9)]" />
                 </div>
               )}
               {id === 'arms' && (
@@ -97,9 +112,9 @@ export function RobotSilhouette({
                 </>
               )}
             </div>
-            {!on && pieces > 0 && (
+            {!on && stamps > 0 && (
               <p className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-amber-100">
-                조각 {pieces}/2
+                도장 {stamps}/{goal}
               </p>
             )}
           </div>

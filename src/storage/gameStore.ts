@@ -1,28 +1,36 @@
-import { MISSIONS, todayKey } from '../data/missions'
+import { MISSIONS, todayKey, type MissionDef } from '../data/missions'
 import {
   DEFAULT_PIN,
-  ENERGY_PER_PART,
+  GOAL_TOTAL,
+  PART_LABELS,
   PART_ORDER,
-  PIECES_TO_DOCK,
   STORAGE_KEY,
-  type DockEvent,
   type GameState,
+  type PartEvent,
   type PartId,
   type RewardItem,
 } from '../types/game'
 
-export function createDefaultState(): GameState {
-  const missionsToday: GameState['missionsToday'] = {}
-  for (const m of MISSIONS) missionsToday[m.id] = 'pending'
+function emptyProgress(): Record<string, number> {
+  const progress: Record<string, number> = {}
+  for (const m of MISSIONS) progress[m.id] = 0
+  return progress
+}
 
+function emptyParts(): Record<PartId, 0 | 1> {
+  const parts = {} as Record<PartId, 0 | 1>
+  for (const id of PART_ORDER) parts[id] = 0
+  return parts
+}
+
+export function createDefaultState(): GameState {
   return {
     robotName: '코코봇',
     energy: 0,
-    parts: { feet: 0, legs: 0, body: 0, arms: 0, head: 0 },
-    partPieces: { feet: 0, legs: 0, body: 0, arms: 0, head: 0 },
+    parts: emptyParts(),
+    missionProgress: emptyProgress(),
     mode: 'normal',
     coolingUntil: null,
-    missionsToday,
     missionDate: todayKey(),
     dailyMissionLimit: 3,
     rewards: [
@@ -32,10 +40,11 @@ export function createDefaultState(): GameState {
     ],
     parentPin: DEFAULT_PIN,
     tickets: 0,
+    ticketsEarned: 0,
     stickers: [],
     heroCelebrated: false,
     soundOn: true,
-    engineerMessage: '오늘도 출동 준비! 미션을 골라봐!',
+    engineerMessage: '오늘도 출동 준비! 미션 도장을 모아보자!',
   }
 }
 
@@ -43,12 +52,38 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n))
 }
 
+/** Saves written before missions had stamps stored pieces per part instead. */
+interface LegacySave {
+  partPieces?: Record<string, number>
+}
+
+function normalize(raw: Partial<GameState> & LegacySave): GameState {
+  const base = createDefaultState()
+  const state: GameState = {
+    ...base,
+    ...raw,
+    parts: { ...base.parts, ...(raw.parts ?? {}) },
+    missionProgress: { ...base.missionProgress, ...(raw.missionProgress ?? {}) },
+  }
+
+  if (!raw.missionProgress) {
+    for (const m of MISSIONS) {
+      state.missionProgress[m.id] =
+        state.parts[m.partId] === 1
+          ? m.goalTotal
+          : clamp(raw.partPieces?.[m.partId] ?? 0, 0, m.goalTotal - 1)
+    }
+  }
+
+  state.energy = energyFromProgress(state)
+  return syncTicketsToStamps(state)
+}
+
 export function loadState(): GameState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return createDefaultState()
-    const parsed = { ...createDefaultState(), ...JSON.parse(raw) } as GameState
-    return refreshDailyMissions(clearExpiredCooling(parsed))
+    return refreshDailyMissions(clearExpiredCooling(normalize(JSON.parse(raw))))
   } catch {
     return createDefaultState()
   }
@@ -65,22 +100,20 @@ export function clearExpiredCooling(state: GameState): GameState {
       ...state,
       mode: 'normal',
       coolingUntil: null,
-      engineerMessage: '냉각 끝! 다시 조립할 수 있어!',
+      engineerMessage: '냉각 끝! 다시 도장을 모을 수 있어!',
     }
   }
   return state
 }
 
+/** Stamps are kept across days now, so a new day only refreshes the greeting. */
 export function refreshDailyMissions(state: GameState): GameState {
   const today = todayKey()
   if (state.missionDate === today) return state
-  const missionsToday: GameState['missionsToday'] = {}
-  for (const m of MISSIONS) missionsToday[m.id] = 'pending'
   return {
     ...state,
     missionDate: today,
-    missionsToday,
-    engineerMessage: '새로운 하루야! 미션을 시작하자!',
+    engineerMessage: '새로운 하루야! 오늘도 도장을 모아보자!',
   }
 }
 
@@ -92,31 +125,68 @@ export function isComplete(state: GameState): boolean {
   return dockedCount(state) === PART_ORDER.length
 }
 
-export function energyFromParts(state: GameState): number {
-  return dockedCount(state) * ENERGY_PER_PART
+export function stampsOf(state: GameState, missionId: string): number {
+  return state.missionProgress[missionId] ?? 0
 }
 
-export type CompleteMissionResult = {
+export function totalStamps(state: GameState): number {
+  return MISSIONS.reduce((sum, m) => sum + stampsOf(state, m.id), 0)
+}
+
+/** Header / shop ticket count always mirrors total mission stamps. */
+function syncTicketsToStamps(state: GameState): GameState {
+  const stamps = totalStamps(state)
+  if (state.tickets === stamps && state.ticketsEarned === stamps) return state
+  return { ...state, tickets: stamps, ticketsEarned: stamps }
+}
+
+export const MAX_STAMPS = MISSIONS.reduce((sum, m) => sum + m.goalTotal, 0)
+
+/** Energy tracks every stamp, so the gauge moves on each tap instead of jumping. */
+export function energyFromProgress(state: GameState): number {
+  return Math.round((totalStamps(state) / MAX_STAMPS) * 100)
+}
+
+export function isMissionDone(state: GameState, mission: MissionDef): boolean {
+  return stampsOf(state, mission.id) >= mission.goalTotal
+}
+
+export function isMissionLocked(state: GameState, mission: MissionDef): boolean {
+  return state.mode === 'cooling' && !mission.recovery
+}
+
+export interface StampResult {
   state: GameState
-  docked: DockEvent | null
+  docked: PartEvent | null
   completedRobot: boolean
 }
 
-export function completeMission(
+export function stampMission(
   state: GameState,
   missionId: string,
-): CompleteMissionResult {
+  opts?: { force?: boolean },
+): StampResult {
   const mission = MISSIONS.find((m) => m.id === missionId)
   if (!mission) return { state, docked: null, completedRobot: false }
-  if (state.missionsToday[missionId] === 'done') {
+
+  const current = stampsOf(state, missionId)
+  if (current >= mission.goalTotal) {
     return { state, docked: null, completedRobot: false }
   }
 
+  if (!opts?.force && isMissionLocked(state, mission)) {
+    return {
+      state: { ...state, engineerMessage: '냉각 중! 회복 미션(떼 안 쓰기)으로 고치자!' },
+      docked: null,
+      completedRobot: false,
+    }
+  }
+
+  const stamps = current + 1
   let next: GameState = {
     ...state,
-    missionsToday: { ...state.missionsToday, [missionId]: 'done' },
-    energy: clamp(state.energy + mission.energyGain, 0, 100),
-    engineerMessage: `멋져! ${mission.title} 성공!`,
+    missionProgress: { ...state.missionProgress, [missionId]: stamps },
+    engineerMessage: `${mission.title} 도장 ${stamps}/${mission.goalTotal}!`,
   }
 
   if (mission.recovery && next.mode === 'cooling') {
@@ -124,45 +194,31 @@ export function completeMission(
       ...next,
       mode: 'normal',
       coolingUntil: null,
-      engineerMessage: '회복 미션 성공! 냉각이 풀렸어!',
+      rewards: next.rewards.map((r) => ({ ...r, delayed: false })),
+      engineerMessage: '참았구나! 냉각이 풀렸어!',
     }
   }
 
-  if (mission.sticker && !next.stickers.includes(mission.sticker)) {
-    next = { ...next, stickers: [...next.stickers, mission.sticker] }
-  }
+  let docked: PartEvent | null = null
+  if (stamps >= mission.goalTotal) {
+    next = {
+      ...next,
+      parts: { ...next.parts, [mission.partId]: 1 },
+      engineerMessage: `${PART_LABELS[mission.partId]} 조립 완료! 찰칵!`,
+    }
+    docked = { partId: mission.partId, key: Date.now() }
 
-  let docked: DockEvent | null = null
-  const partId = mission.partId
-
-  if (mission.pieceGain > 0 && next.parts[partId] === 0) {
-    const pieces = next.partPieces[partId] + mission.pieceGain
-    if (pieces >= PIECES_TO_DOCK) {
-      const parts = { ...next.parts, [partId]: 1 as const }
-      const partPieces = { ...next.partPieces, [partId]: PIECES_TO_DOCK }
-      const energy = Math.max(next.energy, energyFromParts({ ...next, parts }))
-      next = {
-        ...next,
-        parts,
-        partPieces,
-        energy,
-        engineerMessage: `${partLabel(partId)} 도킹 완료! 찰칵!`,
-      }
-      docked = { partId, key: Date.now() }
-    } else {
-      next = {
-        ...next,
-        partPieces: { ...next.partPieces, [partId]: pieces },
-        engineerMessage: `${partLabel(partId)} 조각 ${pieces}/${PIECES_TO_DOCK}!`,
-      }
+    if (mission.sticker && !next.stickers.includes(mission.sticker)) {
+      next = { ...next, stickers: [...next.stickers, mission.sticker] }
     }
   }
+
+  next = syncTicketsToStamps({ ...next, energy: energyFromProgress(next) })
 
   const completedRobot = isComplete(next) && !next.heroCelebrated
   if (completedRobot) {
     next = {
       ...next,
-      tickets: next.tickets + 1,
       engineerMessage: '로봇 완성! 히어로 출동식!',
     }
   }
@@ -170,15 +226,41 @@ export function completeMission(
   return { state: next, docked, completedRobot }
 }
 
-function partLabel(partId: PartId) {
-  const map = {
-    feet: '정리의 발',
-    legs: '약속의 다리',
-    body: '건강의 심장',
-    arms: '도우미의 팔',
-    head: '존중의 머리',
+export interface UnstampResult {
+  state: GameState
+  undocked: PartEvent | null
+}
+
+export function unstampMission(state: GameState, missionId: string): UnstampResult {
+  const mission = MISSIONS.find((m) => m.id === missionId)
+  if (!mission) return { state, undocked: null }
+
+  const current = stampsOf(state, missionId)
+  if (current <= 0) return { state, undocked: null }
+
+  const stamps = current - 1
+  const wasDone = current >= mission.goalTotal
+
+  let next: GameState = {
+    ...state,
+    missionProgress: { ...state.missionProgress, [missionId]: stamps },
+    engineerMessage: wasDone
+      ? `${PART_LABELS[mission.partId]}이 떨어졌어. 다시 모아보자!`
+      : `${mission.title} 도장 ${stamps}/${mission.goalTotal}`,
   }
-  return map[partId]
+
+  let undocked: PartEvent | null = null
+  if (wasDone) {
+    next = {
+      ...next,
+      parts: { ...next.parts, [mission.partId]: 0 },
+      // Let the ceremony play again once the robot is rebuilt.
+      heroCelebrated: false,
+    }
+    undocked = { partId: mission.partId, key: Date.now() }
+  }
+
+  return { state: syncTicketsToStamps({ ...next, energy: energyFromProgress(next) }), undocked }
 }
 
 export function applyCooling(state: GameState, hours = 4): GameState {
@@ -187,11 +269,8 @@ export function applyCooling(state: GameState, hours = 4): GameState {
     ...state,
     mode: 'cooling',
     coolingUntil: until,
-    energy: clamp(state.energy - 10, energyFromParts(state), 100),
     engineerMessage: '냉각 모드… 로봇이 쉬는 중이야. 고치면 다시 조립!',
-    rewards: state.rewards.map((r) =>
-      !r.redeemed ? { ...r, delayed: true } : r,
-    ),
+    rewards: state.rewards.map((r) => (!r.redeemed ? { ...r, delayed: true } : r)),
   }
 }
 
@@ -205,43 +284,73 @@ export function clearCooling(state: GameState): GameState {
   }
 }
 
-export function forcePart(
-  state: GameState,
-  partId: PartId,
-  docked: boolean,
-): GameState {
+/** Commander override: forcing a part also settles its mission stamps. */
+export function forcePart(state: GameState, partId: PartId, docked: boolean): GameState {
+  const mission = MISSIONS.find((m) => m.partId === partId)
   const parts = { ...state.parts, [partId]: docked ? 1 : 0 } as GameState['parts']
-  const partPieces = {
-    ...state.partPieces,
-    [partId]: docked ? PIECES_TO_DOCK : 0,
-  }
-  return {
+  const missionProgress = mission
+    ? {
+        ...state.missionProgress,
+        [mission.id]: docked ? mission.goalTotal : Math.min(stampsOf(state, mission.id), mission.goalTotal - 1),
+      }
+    : state.missionProgress
+
+  let next: GameState = {
     ...state,
     parts,
-    partPieces,
-    energy: Math.max(state.energy, energyFromParts({ ...state, parts })),
+    missionProgress,
+    heroCelebrated: docked ? state.heroCelebrated : false,
     engineerMessage: docked
-      ? `${partLabel(partId)} 강제 장착!`
-      : `${partLabel(partId)} 해제됨`,
+      ? `${PART_LABELS[partId]} 강제 장착!`
+      : `${PART_LABELS[partId]} 해제됨`,
   }
+
+  next = syncTicketsToStamps({ ...next, energy: energyFromProgress(next) })
+  return next
 }
 
+/**
+ * Completing the robot unlocks one shop pick. Ticket count itself always
+ * mirrors stamp total — reservation does not spend stamps.
+ */
 export function reserveReward(state: GameState, rewardId: string): GameState {
   if (state.mode === 'cooling') {
     return { ...state, engineerMessage: '냉각 중이야. 나중에!' }
   }
+  if (!isComplete(state)) {
+    return {
+      ...state,
+      engineerMessage: '미션을 모두 끝내고 로봇을 완성해야 예약할 수 있어요!',
+    }
+  }
   const reward = state.rewards.find((r) => r.id === rewardId)
   if (!reward || reward.redeemed || reward.delayed) return state
-  if (state.tickets < reward.cost) {
+  if (state.rewards.some((r) => r.redeemed)) {
+    return {
+      ...state,
+      engineerMessage: '상품은 1개만 고를 수 있어요! 먼저 고른 걸 제거해줘.',
+    }
+  }
+  if (totalStamps(state) < reward.cost) {
     return { ...state, engineerMessage: '출동 티켓이 더 필요해!' }
   }
   return {
     ...state,
-    tickets: state.tickets - reward.cost,
-    rewards: state.rewards.map((r) =>
-      r.id === rewardId ? { ...r, redeemed: true } : r,
-    ),
+    rewards: state.rewards.map((r) => (r.id === rewardId ? { ...r, redeemed: true } : r)),
     engineerMessage: `${reward.label} 예약 완료! 부모님께 보여줘!`,
+  }
+}
+
+/** Puts a reserved reward back on the shelf. */
+export function clearReward(state: GameState, rewardId: string): GameState {
+  const reward = state.rewards.find((r) => r.id === rewardId)
+  if (!reward || !reward.redeemed) return state
+  return {
+    ...state,
+    rewards: state.rewards.map((r) =>
+      r.id === rewardId ? { ...r, redeemed: false, delayed: state.mode === 'cooling' } : r,
+    ),
+    engineerMessage: `${reward.label}을 지웠어요. 다시 예약할 수 있어!`,
   }
 }
 
@@ -270,3 +379,18 @@ export function resetGame(): GameState {
   saveState(fresh)
   return fresh
 }
+
+/** Clears every mission stamp and undocks parts, keeping shop rewards. */
+export function resetMissions(state: GameState): GameState {
+  return syncTicketsToStamps({
+    ...state,
+    parts: emptyParts(),
+    missionProgress: emptyProgress(),
+    energy: 0,
+    stickers: [],
+    heroCelebrated: false,
+    engineerMessage: '미션을 처음부터 다시 모아보자!',
+  })
+}
+
+export { GOAL_TOTAL }

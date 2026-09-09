@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MISSIONS } from '../data/missions'
 import {
   addReward,
   applyCooling,
   clearCooling,
   clearExpiredCooling,
-  completeMission,
+  clearReward,
   forcePart,
   isComplete,
   loadState,
@@ -13,121 +12,103 @@ import {
   refreshDailyMissions,
   reserveReward,
   resetGame,
+  resetMissions,
   saveState,
   setRobotName,
+  stampMission,
+  unstampMission,
 } from '../storage/gameStore'
-import { PART_ORDER, type DockEvent, type GameState, type PartId } from '../types/game'
+import type { GameState, PartEvent, PartId } from '../types/game'
 
 export function useGameState() {
   const [state, setState] = useState<GameState>(() => loadState())
-  const [dockEvent, setDockEvent] = useState<DockEvent | null>(null)
+  const [dockEvent, setDockEvent] = useState<PartEvent | null>(null)
+  const [undockEvent, setUndockEvent] = useState<PartEvent | null>(null)
   const [showHero, setShowHero] = useState(false)
-  const prevParts = useRef(state.parts)
-  const prevComplete = useRef(isComplete(state) && state.heroCelebrated)
+
+  // Actions read from this instead of a setState updater so that firing dock
+  // events stays a plain side effect, and rapid taps never lose a stamp.
+  const latest = useRef(state)
 
   useEffect(() => {
+    latest.current = state
     saveState(state)
   }, [state])
 
   useEffect(() => {
     const id = window.setInterval(() => {
-      setState((s) => clearExpiredCooling(refreshDailyMissions(s)))
+      const next = clearExpiredCooling(refreshDailyMissions(latest.current))
+      if (next !== latest.current) {
+        latest.current = next
+        setState(next)
+      }
     }, 30_000)
     return () => clearInterval(id)
   }, [])
 
-  useEffect(() => {
-    for (const partId of PART_ORDER) {
-      if (prevParts.current[partId] === 0 && state.parts[partId] === 1) {
-        setDockEvent({ partId, key: Date.now() })
-        break
-      }
-    }
-    prevParts.current = state.parts
-  }, [state.parts])
-
-  useEffect(() => {
-    const done = isComplete(state)
-    if (done && !state.heroCelebrated && !prevComplete.current) {
-      setShowHero(true)
-    }
-    prevComplete.current = done && state.heroCelebrated
-  }, [state])
-
-  const update = useCallback((fn: (s: GameState) => GameState) => {
-    setState((s) => fn(clearExpiredCooling(refreshDailyMissions(s))))
+  const commit = useCallback((next: GameState) => {
+    latest.current = next
+    setState(next)
   }, [])
 
-  const approveMission = useCallback((missionId: string, opts?: { force?: boolean }) => {
-    setState((s) => {
-      const base = clearExpiredCooling(refreshDailyMissions(s))
-      const def = MISSIONS.find((m) => m.id === missionId)
-      if (!opts?.force && base.mode === 'cooling' && !def?.recovery) {
-        return {
-          ...base,
-          engineerMessage: '냉각 중! 회복 미션(떼 안 쓰기)으로 고치자!',
-        }
-      }
-      const working =
-        opts?.force && base.mode === 'cooling'
-          ? { ...base, mode: 'normal' as const }
-          : base
-      const { state: next } = completeMission(working, missionId)
-      if (opts?.force && base.mode === 'cooling' && next.mode === 'normal' && !def?.recovery) {
-        return { ...next, mode: 'cooling' as const, coolingUntil: base.coolingUntil }
-      }
-      return next
-    })
-  }, [])
+  const current = useCallback(
+    () => clearExpiredCooling(refreshDailyMissions(latest.current)),
+    [],
+  )
+
+  const update = useCallback(
+    (fn: (s: GameState) => GameState) => commit(fn(current())),
+    [commit, current],
+  )
+
+  const stamp = useCallback(
+    (missionId: string, opts?: { force?: boolean }) => {
+      const { state: next, docked, completedRobot } = stampMission(current(), missionId, opts)
+      commit(next)
+      if (docked) setDockEvent(docked)
+      if (completedRobot) setShowHero(true)
+    },
+    [commit, current],
+  )
+
+  const unstamp = useCallback(
+    (missionId: string) => {
+      const { state: next, undocked } = unstampMission(current(), missionId)
+      commit(next)
+      if (undocked) setUndockEvent(undocked)
+    },
+    [commit, current],
+  )
 
   const startCooling = useCallback(
-    (hours?: number) => {
-      update((s) => applyCooling(s, hours))
-    },
+    (hours?: number) => update((s) => applyCooling(s, hours)),
     [update],
   )
 
-  const endCooling = useCallback(() => {
-    update(clearCooling)
-  }, [update])
+  const endCooling = useCallback(() => update(clearCooling), [update])
 
   const setPart = useCallback(
     (partId: PartId, docked: boolean) => {
-      update((s) => {
-        const next = forcePart(s, partId, docked)
-        if (
-          docked &&
-          PART_ORDER.every((p) => (p === partId ? true : next.parts[p] === 1)) &&
-          !next.heroCelebrated
-        ) {
-          return { ...next, tickets: next.tickets + (isComplete(next) && !isComplete(s) ? 1 : 0) }
-        }
-        return next
-      })
+      const base = current()
+      const next = forcePart(base, partId, docked)
+      commit(next)
+      if (docked && base.parts[partId] === 0) setDockEvent({ partId, key: Date.now() })
+      if (!docked && base.parts[partId] === 1) setUndockEvent({ partId, key: Date.now() })
+      if (isComplete(next) && !next.heroCelebrated) setShowHero(true)
     },
-    [update],
+    [commit, current],
   )
 
-  const buyReward = useCallback(
-    (id: string) => {
-      update((s) => reserveReward(s, id))
-    },
-    [update],
-  )
+  const buyReward = useCallback((id: string) => update((s) => reserveReward(s, id)), [update])
+
+  const removeReward = useCallback((id: string) => update((s) => clearReward(s, id)), [update])
 
   const createReward = useCallback(
-    (label: string) => {
-      update((s) => addReward(s, label))
-    },
+    (label: string) => update((s) => addReward(s, label)),
     [update],
   )
 
-  const rename = useCallback(
-    (name: string) => {
-      update((s) => setRobotName(s, name))
-    },
-    [update],
-  )
+  const rename = useCallback((name: string) => update((s) => setRobotName(s, name)), [update])
 
   const finishHero = useCallback(() => {
     update(markHeroCelebrated)
@@ -135,53 +116,58 @@ export function useGameState() {
   }, [update])
 
   const hardReset = useCallback(() => {
-    const fresh = resetGame()
-    prevParts.current = fresh.parts
-    prevComplete.current = false
-    setState(fresh)
+    commit(resetGame())
     setDockEvent(null)
+    setUndockEvent(null)
     setShowHero(false)
-  }, [])
+  }, [commit])
+
+  const clearMissions = useCallback(() => {
+    update(resetMissions)
+    setDockEvent(null)
+    setUndockEvent(null)
+    setShowHero(false)
+  }, [update])
 
   const setDailyLimit = useCallback(
-    (n: number) => {
-      update((s) => ({ ...s, dailyMissionLimit: Math.max(1, Math.min(7, n)) }))
-    },
+    (n: number) => update((s) => ({ ...s, dailyMissionLimit: Math.max(1, Math.min(7, n)) })),
     [update],
   )
 
   const setPin = useCallback(
-    (pin: string) => {
-      update((s) => ({ ...s, parentPin: pin }))
-    },
+    (pin: string) => update((s) => ({ ...s, parentPin: pin })),
     [update],
   )
 
   const setSound = useCallback(
-    (on: boolean) => {
-      update((s) => ({ ...s, soundOn: on }))
-    },
+    (on: boolean) => update((s) => ({ ...s, soundOn: on })),
     [update],
   )
 
   const clearDock = useCallback(() => setDockEvent(null), [])
+  const clearUndock = useCallback(() => setUndockEvent(null), [])
 
   return {
     state,
     dockEvent,
+    undockEvent,
     showHero,
-    approveMission,
+    stamp,
+    unstamp,
     startCooling,
     endCooling,
     setPart,
     buyReward,
+    removeReward,
     createReward,
     rename,
     finishHero,
     hardReset,
+    clearMissions,
     setDailyLimit,
     setPin,
     setSound,
     clearDock,
+    clearUndock,
   }
 }

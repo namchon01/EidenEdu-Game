@@ -14,7 +14,8 @@ interface CommanderModeProps {
   onRename: (name: string) => void
   onAddReward: (label: string) => void
   onReset: () => void
-  onApproveMission: (id: string) => void
+  onStampMission: (id: string) => void
+  onUnstampMission: (id: string) => void
 }
 
 export function CommanderMode({
@@ -29,7 +30,8 @@ export function CommanderMode({
   onRename,
   onAddReward,
   onReset,
-  onApproveMission,
+  onStampMission,
+  onUnstampMission,
 }: CommanderModeProps) {
   const [name, setName] = useState(state.robotName)
   const [pin, setPin] = useState(state.parentPin)
@@ -49,7 +51,7 @@ export function CommanderMode({
             닫기
           </button>
         </div>
-        <p className="mt-1 text-sm text-teal-100/80">부모님 전용 · 미션 승인 · 냉각 · 단계 조정</p>
+        <p className="mt-1 text-sm text-teal-100/80">부모님 전용 · 도장 조정 · 냉각 · 부품 조정</p>
 
         <section className="mt-6 space-y-3">
           <h3 className="font-display text-lg font-bold text-amber-200">로봇 이름</h3>
@@ -71,23 +73,52 @@ export function CommanderMode({
         </section>
 
         <section className="mt-6 space-y-3">
-          <h3 className="font-display text-lg font-bold text-amber-200">미션 빠른 승인</h3>
-          <div className="grid grid-cols-2 gap-2">
+          <h3 className="font-display text-lg font-bold text-amber-200">미션 도장 조정</h3>
+          <div className="space-y-2">
             {MISSIONS.map((m) => {
-              const status = state.missionsToday[m.id]
+              const stamps = Math.min(state.missionProgress[m.id] ?? 0, m.goalTotal)
+              const done = stamps >= m.goalTotal
               return (
-                <button
+                <div
                   key={m.id}
-                  type="button"
-                  disabled={status === 'done'}
-                  onClick={() => onApproveMission(m.id)}
-                  className="min-h-12 rounded-xl bg-white/10 px-2 text-sm font-semibold disabled:opacity-40"
+                  className="flex items-center gap-2 rounded-xl bg-black/25 px-3 py-2"
                 >
-                  {m.icon} {m.title} {status === 'done' ? '✓' : ''}
-                </button>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                    {m.icon} {m.title}
+                  </span>
+                  <span
+                    className={`shrink-0 text-sm font-bold tabular-nums ${
+                      done ? 'text-amber-300' : 'text-teal-100/80'
+                    }`}
+                  >
+                    {stamps}/{m.goalTotal}
+                    {done ? ' ✓' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onUnstampMission(m.id)}
+                    disabled={stamps === 0}
+                    aria-label={`${m.title} 도장 차감`}
+                    className="size-10 shrink-0 rounded-lg bg-white/10 text-xl font-bold disabled:opacity-35"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onStampMission(m.id)}
+                    disabled={done}
+                    aria-label={`${m.title} 도장 추가`}
+                    className="size-10 shrink-0 rounded-lg bg-amber-400/90 text-xl font-bold text-slate-900 disabled:opacity-35"
+                  >
+                    +
+                  </button>
+                </div>
               )
             })}
           </div>
+          <p className="text-xs text-teal-100/70">
+            냉각 중에도 사령관은 도장을 찍을 수 있어요. 3개가 되면 부품이 바로 조립됩니다.
+          </p>
         </section>
 
         <section className="mt-6 space-y-3">
@@ -151,7 +182,7 @@ export function CommanderMode({
         </section>
 
         <section className="mt-6 space-y-3">
-          <h3 className="font-display text-lg font-bold text-amber-200">오늘 목표 개수</h3>
+          <h3 className="font-display text-lg font-bold text-amber-200">한눈에 보여줄 미션 수</h3>
           <div className="flex items-center gap-3">
             <button
               type="button"

@@ -31,11 +31,36 @@
     font-family: var(--font-display);
   }
 
+  .app-shell {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
   .bg-hangar {
     background:
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(45, 212, 191, 0.28), transparent 55%),
       radial-gradient(ellipse 60% 40% at 80% 80%, rgba(251, 191, 36, 0.12), transparent 50%),
       linear-gradient(165deg, #0f766e 0%, #042f2e 42%, #0b1220 100%);
+  }
+
+  /* Cinematic hangar sky behind the 3D robot stage. */
+  .bg-robot-sky {
+    background:
+      radial-gradient(ellipse 70% 45% at 50% 18%, rgba(255, 255, 255, 0.55), transparent 62%),
+      radial-gradient(ellipse 90% 55% at 50% 100%, rgba(14, 116, 144, 0.22), transparent 55%),
+      radial-gradient(ellipse 55% 40% at 12% 70%, rgba(56, 189, 248, 0.18), transparent 70%),
+      radial-gradient(ellipse 50% 35% at 88% 55%, rgba(125, 211, 252, 0.2), transparent 65%),
+      linear-gradient(
+        180deg,
+        #5b9ec4 0%,
+        #7ebfdc 22%,
+        #a8daf0 48%,
+        #c9ebf8 68%,
+        #9fd0e6 86%,
+        #6fa8c4 100%
+      );
   }
 }
 
@@ -95,6 +120,75 @@
   }
 }
 
+@keyframes stamp-pop {
+  0% {
+    transform: scale(0.55) rotate(-14deg);
+  }
+  55% {
+    transform: scale(1.28) rotate(6deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes stamp-ring {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@keyframes card-done {
+  0% {
+    transform: translateX(0) rotate(0deg) scale(1);
+  }
+  12% {
+    transform: translateX(-8px) rotate(-1.4deg) scale(1.03);
+  }
+  26% {
+    transform: translateX(8px) rotate(1.4deg) scale(1.04);
+  }
+  40% {
+    transform: translateX(-6px) rotate(-1deg) scale(1.03);
+  }
+  54% {
+    transform: translateX(6px) rotate(1deg) scale(1.02);
+  }
+  68% {
+    transform: translateX(-4px) rotate(-0.6deg) scale(1.02);
+  }
+  82% {
+    transform: translateX(3px) rotate(0.3deg) scale(1.01);
+  }
+  100% {
+    transform: translateX(0) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes done-flash {
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes card-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(251, 191, 36, 0);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(251, 191, 36, 0.45);
+  }
+}
+
 @keyframes spark {
   0%,
   100% {
@@ -129,4 +223,35 @@
 
 .animate-spark {
   animation: spark 1.2s ease-in-out infinite;
+}
+
+.animate-stamp-pop {
+  animation: stamp-pop 0.42s cubic-bezier(0.22, 1.4, 0.4, 1);
+}
+
+.animate-stamp-ring {
+  animation: stamp-ring 0.6s ease-out forwards;
+}
+
+.animate-card-glow {
+  animation: card-glow 2.4s ease-in-out infinite;
+}
+
+.animate-card-done {
+  animation: card-done 1.05s cubic-bezier(0.32, 0.9, 0.36, 1);
+}
+
+.animate-done-flash {
+  animation: done-flash 0.85s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-stamp-pop,
+  .animate-stamp-ring,
+  .animate-card-glow,
+  .animate-card-done,
+  .animate-done-flash,
+  .animate-spark {
+    animation: none;
+  }
 }

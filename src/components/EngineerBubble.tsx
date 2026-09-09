@@ -4,7 +4,7 @@ interface EngineerBubbleProps {
 
 export function EngineerBubble({ message }: EngineerBubbleProps) {
   return (
-    <div className="mx-auto flex w-full max-w-lg items-end gap-3 px-4 py-3">
+    <div className="mx-auto flex w-full max-w-lg items-end gap-3 px-4 py-2">
       <div
         className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-lime-300 to-teal-500 text-2xl shadow-lg"
         aria-hidden

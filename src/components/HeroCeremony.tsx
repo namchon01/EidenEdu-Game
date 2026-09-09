@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { playSfx } from '../audio/soundEngine'
 
 interface HeroCeremonyProps {
   robotName: string
@@ -10,11 +11,14 @@ export function HeroCeremony({ robotName, onDone, onOpenShop }: HeroCeremonyProp
   const [phase, setPhase] = useState(0)
 
   useEffect(() => {
-    const t1 = window.setTimeout(() => setPhase(1), 600)
-    const t2 = window.setTimeout(() => setPhase(2), 1600)
+    playSfx('powerUp')
+    const timers = [
+      window.setTimeout(() => setPhase(1), 600),
+      window.setTimeout(() => playSfx('fanfare'), 620),
+      window.setTimeout(() => setPhase(2), 1600),
+    ]
     return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
+      for (const t of timers) clearTimeout(t)
     }
   }, [])
 
@@ -49,7 +53,7 @@ export function HeroCeremony({ robotName, onDone, onOpenShop }: HeroCeremonyProp
           phase >= 2 ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        5부위 조립 완료! 출동 티켓을 받았어요. 약속한 보상으로 교환할 수 있어요.
+        7부품 조립 완료! 출동 티켓을 받았어요. 약속한 보상으로 교환할 수 있어요.
       </p>
 
       <div

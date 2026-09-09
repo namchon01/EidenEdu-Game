@@ -62,9 +62,13 @@ export function LockButton({ expectedPin, onUnlock }: LockButtonProps) {
           openPin()
         }}
         onContextMenu={(e) => e.preventDefault()}
-        className={`fixed bottom-4 right-4 z-30 flex size-14 flex-col items-center justify-center rounded-full shadow-lg ring-1 ring-white/15 backdrop-blur active:scale-95 ${
+        className={`fixed z-30 flex size-14 flex-col items-center justify-center rounded-full shadow-lg ring-1 ring-white/15 backdrop-blur active:scale-95 ${
           holding ? 'bg-amber-400 text-slate-900' : 'bg-slate-900/70 text-amber-200/70'
         }`}
+        style={{
+          left: 'max(1rem, env(safe-area-inset-left, 0px))',
+          bottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+        }}
       >
         <Lock className="size-5" />
         <span className="text-[9px] font-bold leading-none">부모</span>
